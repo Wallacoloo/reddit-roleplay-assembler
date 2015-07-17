@@ -9,7 +9,8 @@
 #   and the number of comments grows absurdly.
 
 
-import praw, itertools
+import praw, itertools, sys
+
 
 def reverse_enumerate(iterable):
     """
@@ -69,11 +70,17 @@ def mane(thread_id, author_map={}):
 	# Create a context through which to access reddit
 	reddit = praw.Reddit(user_agent='github.com/wallacoloo/reddit-roleplay-assembler')
 	thread = reddit.get_submission(submission_id=thread_id)
+
+	# Many functions recurse through the comment chain, so set a high recursion limit
+	sys.setrecursionlimit(thread.num_comments+1000)
+
 	# Expand all comments (this will take some time!)
 	thread.replace_more_comments(limit=None, threshold=1)
+
 	# Remove all but the main thread of comments
 	max_depth = max_comment_depth(thread)
 	filter_comments_by_max_depth(thread.comments, max_depth)
+
 	# There may still be comment forks near the end that have the same length
 	# We need to drop everything after the fork, as we don't know which of the choices is the main discussion
 	flattened = flatten_mono_thread(thread.comments[0])
