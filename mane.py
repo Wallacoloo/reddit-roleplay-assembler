@@ -9,7 +9,7 @@
 #   and the number of comments grows absurdly.
 
 
-import praw, itertools, sys
+import praw, itertools, sys, json
 
 
 def reverse_enumerate(iterable):
@@ -51,14 +51,15 @@ def flatten_mono_thread(comment):
 		yield comment
 		comment = comment.replies[0]
 
-def serialize_thread(comments, author_map={}):
+def serialize_thread_to_json(comments):
 	"""
-	Serialize a flat sequence of comments into plain text.
-	author_map is a dictionary that maps reddit usernames to character names.
+	Serialize a flat sequence of comments into JSON format.
 	"""
-	return "\n".join("%s: %s" %(author_map.get(c.author.name, c.author.name), c.body) for c in comments)
+	list_of_dicts = [{ "author": c.author.name, "body_html":c.body_html, 
+	"created_utc":c.created_utc, "permalink":c.permalink } for c in comments]
+	return json.dumps(list_of_dicts)
 
-def mane(thread_id, author_map={}):
+def mane(thread_id):
 	"""
 	thread_id is the id of the reddit submission to squash (check the URL).
 	author_map is an optional dictionary to map reddit usernames to character names.
@@ -72,7 +73,7 @@ def mane(thread_id, author_map={}):
 	thread = reddit.get_submission(submission_id=thread_id)
 
 	# Many functions recurse through the comment chain, so set a high recursion limit
-	sys.setrecursionlimit(thread.num_comments+1000)
+	sys.setrecursionlimit(5*thread.num_comments+1000)
 
 	# Expand all comments (this will take some time!)
 	thread.replace_more_comments(limit=None, threshold=1)
@@ -84,7 +85,7 @@ def mane(thread_id, author_map={}):
 	# There may still be comment forks near the end that have the same length
 	# We need to drop everything after the fork, as we don't know which of the choices is the main discussion
 	flattened = flatten_mono_thread(thread.comments[0])
-	return serialize_thread(flattened, author_map=author_map)
+	return serialize_thread_to_json(flattened)
 
 if __name__ == "__main__":
-	print mane(thread_id="339wbs", author_map={u"Lunas_Disciple":"Twily", u"Dr_Zorand":"Dashie"})
+	print mane(thread_id="339wbs")
