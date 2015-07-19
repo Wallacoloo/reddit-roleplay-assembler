@@ -1,7 +1,10 @@
 #!/usr/bin/python
 
-# Requirements: install Python Reddit API Wrapper (PRAW)
-# Do so via `pip install praw` or download from github: https://github.com/praw-dev/praw
+# Requirements: 
+#   install html2text and Python Reddit API Wrapper (PRAW)
+#     Do so via `pip install html2text praw` or download from github: 
+#       https://github.com/aaronsw/html2text
+#       https://github.com/praw-dev/praw
 
 # This script reads through a reddit thread, finds the deepest comment, and walks down the chain to it,
 # Compiling all comments in that chain into a single page.
