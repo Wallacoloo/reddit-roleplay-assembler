@@ -29,7 +29,8 @@
 </head>
 <body>
 	{% for comment in comments %}
-		<div class="rra-comment author-{{ comment['author'] }} character-{{ author_map[comment['author']] }}">
+		<div class="rra-comment author-{{ comment['author'] }} character-{{ author_map[comment['author']] }}"
+			title="/u/{{ comment['author'] }} at {{ time.strftime('%c', time.gmtime(comment['created_utc'])) }} UTC">
 			{{ unidecode.unidecode(comment["body_html"]) }}
 			<div style="clear:both"></div>
 		</div>

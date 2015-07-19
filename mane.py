@@ -12,7 +12,7 @@
 #   and the number of comments grows absurdly.
 
 
-import base64, itertools, json, os.path, unidecode, sys
+import base64, itertools, json, os.path, unidecode, sys, time
 from collections import defaultdict
 import html2text, jinja2, praw, requests
 
@@ -147,7 +147,9 @@ class ThreadProcessor(object):
 		author_map = default_author_map
 		author_map.update(self.author_map)
 
-		return template.render(unidecode=unidecode, subreddit_css=subreddit_css, author_map=author_map, characters=self.characters,
+		return template.render(unidecode=unidecode, time=time, 
+			subreddit_css=subreddit_css, 
+			author_map=author_map, characters=self.characters,
 			comments=self.comment_data, title="")
 	def get_txt(self):
 		"""
