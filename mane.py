@@ -12,9 +12,9 @@
 #   and the number of comments grows absurdly.
 
 
-import itertools, sys, json, os.path, unidecode
+import base64, itertools, json, os.path, unidecode, sys
 from collections import defaultdict
-import praw, html2text, jinja2
+import html2text, jinja2, praw, requests
 
 
 def reverse_enumerate(iterable):
@@ -136,7 +136,10 @@ class ThreadProcessor(object):
 		images = style_info["images"]
 		# substitute image urls
 		for im in images:
-			subreddit_css = subreddit_css.replace(im["link"], "url(%s)" % im["url"])
+			im_req = requests.get(im["url"])
+			mime_type = im_req.headers["content-type"]
+			as_b64 = base64.b64encode(im_req.content)
+			subreddit_css = subreddit_css.replace(im["link"], "url(data:%s;base64,%s)" % (mime_type, as_b64))
 
 		# in case not all authors were accounted for, map unknown authors to character "unknown"
 		author_names = set(c["author"] for c in self.comment_data)
