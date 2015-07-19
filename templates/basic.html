@@ -1,0 +1,38 @@
+<html>
+<head>
+	<title>{{ title }}</title>
+
+	<style type="text/css">
+		.rra-comment
+		{
+			padding: 0.1px 0px;
+		}
+
+		{% for author, character in author_map.iteritems() %}
+			.author-{{ author }}
+			{
+
+			}
+		{% endfor %}
+		{% for name, char in characters.iteritems() %}
+			.character-{{ name }}
+			{
+				background-color: {{ char["color"] }};
+			}
+		{% endfor %}
+	</style>
+
+	<style type="text/css">
+		{{ subreddit_css }}
+	</style>
+
+</head>
+<body>
+	{% for comment in comments %}
+		<div class="rra-comment author-{{ comment['author'] }} character-{{ author_map[comment['author']] }}">
+			{{ unidecode.unidecode(comment["body_html"]) }}
+			<div style="clear:both"></div>
+		</div>
+	{% endfor %}
+</body>
+</html>

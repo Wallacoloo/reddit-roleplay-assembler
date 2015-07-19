@@ -13,18 +13,33 @@
 
 
 import itertools, sys, json, os.path, unidecode
-import praw, html2text
+from collections import defaultdict
+import praw, html2text, jinja2
 
 
 def reverse_enumerate(iterable):
-    """
-    Enumerate over an iterable in reverse order while retaining proper indexes
-    """
-    # Lifted from http://galvanist.com/post/53478841501/python-reverse-enumerate
-    return itertools.izip(reversed(xrange(len(iterable))), reversed(iterable))
+	"""
+	Enumerate over an iterable in reverse order while retaining proper indexes
+	"""
+	# Lifted from http://galvanist.com/post/53478841501/python-reverse-enumerate
+	return itertools.izip(reversed(xrange(len(iterable))), reversed(iterable))
 
 class ThreadProcessor(object):
-	def __init__(self, thread_id=None, json=None):
+	@property
+	def thread(self):
+		"""
+		Only load the thread if/when it's actually needed.
+		"""
+		if self._thread is None:
+			self._thread = self.reddit.get_submission(submission_id=self.thread_id)
+		return self._thread
+
+	@property
+	def subreddit(self):
+		return self.thread.subreddit
+	
+	
+	def __init__(self, thread_id=None, json=None, author_map=None, characters=None):
 		"""
 		Create an object to do various processing with a reddit thread (rendering to different formats).
 		thread_id is the optional id of the reddit submission to squash (check the URL).
@@ -33,15 +48,17 @@ class ThreadProcessor(object):
 		json is an optional cached/pre-parsed version of the thread. 
 			Equivalent to initializing with a thread_id, and saving self.json to a file
 		"""
-		self.thread = None
+		self._thread = None
+		self.thread_id = thread_id
 		self.comment_data = None
-		self.author_map = {}
+		self.author_map = author_map or {}
+		self.characters = characters or {}
+		# Create a handle for accessing reddit, and load the thread
+		self.reddit = praw.Reddit(user_agent='github.com/wallacoloo/reddit-roleplay-assembler')
+
 		if json is not None:
 			self.comment_data = globals()["json"].loads(json)
-		if thread_id is not None:
-			# Create a context through which to access reddit
-			reddit = praw.Reddit(user_agent='github.com/wallacoloo/reddit-roleplay-assembler')
-			self.thread = reddit.get_submission(submission_id=thread_id)
+		if self.comment_data is None and thread_id is not None:
 			# Many functions recurse through the comment chain, so set a high recursion limit
 			sys.setrecursionlimit(5*self.thread.num_comments+1000)
 
@@ -110,7 +127,25 @@ class ThreadProcessor(object):
 		"""
 		Render a webpage out of the flattened comment data (Experimental)
 		"""
-		return "\n\n".join("%s: %s" %(self.author_map.get(c["author"], c["author"]), c["body_html"]) for c in self.comment_data)
+		env = jinja2.Environment(loader=jinja2.PackageLoader('mane', 'templates'))
+		template = env.get_template('basic.html')
+
+		# Embed subreddit's css into the html page:
+		style_info = self.subreddit.get_stylesheet()
+		subreddit_css = style_info["stylesheet"]
+		images = style_info["images"]
+		# substitute image urls
+		for im in images:
+			subreddit_css = subreddit_css.replace(im["link"], "url(%s)" % im["url"])
+
+		# in case not all authors were accounted for, map unknown authors to character "unknown"
+		author_names = set(c["author"] for c in self.comment_data)
+		default_author_map = dict((author, u"unknown") for author in author_names)
+		author_map = default_author_map
+		author_map.update(self.author_map)
+
+		return template.render(unidecode=unidecode, subreddit_css=subreddit_css, author_map=author_map, characters=self.characters,
+			comments=self.comment_data, title="")
 	def get_txt(self):
 		"""
 		Flatten the thread to a plain-text view, in which each comment is separated by an empty line.
@@ -119,7 +154,7 @@ class ThreadProcessor(object):
 		encoder = html2text.HTML2Text()
 		# Default <a href="path">text</a> encodes to "[text](path)""
 		# Configure it to encode to just "text" instead
-		encoder.ignore_links = True 
+		encoder.ignore_links = True
 		as_unicode = "\n\n".join("<%s>: %s" %(self.author_map.get(c["author"], c["author"]), 
 									encoder.handle(c["body_html"]).strip())
 			for c in self.comment_data)
@@ -136,19 +171,29 @@ def mane():
 		help="render a human-readable .txt file from the flattened thread")
 	parser.add_argument("--html", action="store_true",
 		help="render html webpage from the flattened thread")
+	parser.add_argument("-a", "--author", type=str, action="append",
+		help="""map a reddit username to a character.
+e.g. -a Wallacoloo,Gandalf means that Wallacoloo plays as Gandalf throughout the story""")
+	parser.add_argument("--character-color", type=str, action="append",
+		help="""associate a color value with a character (used for text/background color).
+e.g. --character-color Gandalf,#333355 makes Gandalf a dark blue""")
 	args = parser.parse_args()
 
 	if args.thread:
 		json = None
-		thread_id = None
+		thread_id = args.thread
 		if os.path.isfile("%s.json" % args.thread):
 			# We can use the cached json output
 			json = open("%s.json" % args.thread, "r").read()
-		else:
-			# We need to parse the actual thread
-			thread_id = args.thread
 
-		processor = ThreadProcessor(thread_id=thread_id, json=json)
+		author_map = dict(a.split(",") for a in args.author)
+		# Build a dictionary that maps character names to dicts containing {"color": html_color}
+		characters = defaultdict(dict)
+		for char_color in args.character_color:
+			char, color = char_color.split(",")
+			characters[char]["color"] = color
+
+		processor = ThreadProcessor(thread_id=thread_id, json=json, author_map=author_map, characters=characters)
 
 		if args.json:
 			# store json output to `thread_id`.json
