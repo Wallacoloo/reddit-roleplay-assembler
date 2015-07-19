@@ -16,7 +16,7 @@ Also, this gives an easy way to save a thread for offline reading.
 Render formats
 --------
 
-Reddit Roleplay Assembler (RRA) can currently export the flattened comments to JSON format or plaintext.
+Reddit Roleplay Assembler (RRA) can currently export the flattened comments to html, plaintext or JSON formats
 
 In [JSON](https://en.wikipedia.org/wiki/JSON) format, the decoded data is a flat array of dictionaries,
 where each dictionary represents a single comment and the comments are ordered chronologically in the array.
@@ -37,23 +37,28 @@ In plaintext, all the text is extracted from the body of each comment and the co
 and with a blank line between each comment (the above angle brackets *are* included in the plaintext). 
 When it comes to links, the URL is stripped but the link description is preserved.
 
+In html mode, images, etc. are preserved and the subreddit's stylesheet is packaged with the rendered file. Any images specific to the subreddit are also packaged with the rendered file. So as long as the comments only make use of subreddit-specific images (e.g. emoticons), the rendered file will still work in offline mode.
+
 Usage
 --------
 
 This script is designed to be run from a terminal as so:
 
 ```
-mane.py --thread xxxxxx [--json] [--txt]
+mane.py --thread xxxxxx [--json] [--txt] [--html] [--author author_name,character_name [...]] [--character-color character_name,css-color [...]]
 ```
 
 `xxxxxx` is the id of the thread you wish to flatten, and `--json` and `--txt` are flags to 
 specify the desired output format. Output will be placed in a file of the same name as the thread id, 
-but with a ".json" or ".txt" extension.
+but with a ".json", ".txt" or "html" extension.
 
-For example, if you wanted a plaintext version of the ridiculously long exchange between Lunas_Disciple and Dr_Zorand 
+The `--author` (or `-a`) flags allow you to map authors to their character role. You can repeat the flag for as many authors as needed.
+
+The `--character-color` flag maps a character to some unique color. This is just used to set the background of a comment such that you can see who's speaking/acting. The color is any valid CSS color, e.g. "#abcdef" or "white".
+
+For example, if you wanted a flattened html version of the ridiculously long exchange between Lunas_Disciple and Dr_Zorand 
 in this thread: https://www.reddit.com/r/mylittlepony/comments/339wbs/lets_raise_the_stakes_shall_we_by_inkygarden/cqivxk1,
-you would take the thread id from that url, `339wbs`, run `mane.py --thread 339wbs --json --txt`,
-and then view the output in `339wbs.txt`
+you would take the thread id from that url, `339wbs` and run `mane.py --thread 339wbs --json --html -a Lunas_Disciple,Twily -a Dr_Zorand,Dashie --character-color Twily,#e6ccf0 --character-color Dashie,#cbeafb`. This assigns Lunas_Disciple as the speaking role for Twily and Dr_Zorand as the role for Dashie, configures the colors of each character, fetches the thread and caches it as json, and generates an html page. You can then view the output by opening `339wbs.html`. 
 
 If a file of the name "xxxxxx.json" already exists, this will be used as a cache when rendering other formats.
 Therefore, it is recommended to always pass the `--json` flag when loading a thread for the first time,
