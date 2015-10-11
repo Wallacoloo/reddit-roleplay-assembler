@@ -1,10 +1,8 @@
 #!/usr/bin/python
 
 # Requirements: 
-#   install html2text and Python Reddit API Wrapper (PRAW)
-#     Do so via `pip install html2text praw` or download from github: 
-#       https://github.com/aaronsw/html2text
-#       https://github.com/praw-dev/praw
+#   install unidecode, html2text, jinja2, PRAW (Python Reddit API Wrapper) and requests
+#     e.g. `pip install unidecode html2text jinja2 praw requests`
 
 # This script reads through a reddit thread, finds the deepest comment, and walks down the chain to it,
 # Compiling all comments in that chain into a single page.
@@ -12,9 +10,20 @@
 #   and the number of comments grows absurdly.
 
 
-import base64, itertools, json, os.path, unidecode, sys, time
+import base64, itertools, json, os.path, sys, time
 from collections import defaultdict
-import html2text, jinja2, praw, requests
+
+# Import dependencies that don't always ship with python
+prereqs = "unidecode", "html2text", "jinja2", "praw", "requests"
+missing_deps = []
+for p in prereqs:
+	try:
+		globals()[p] = __import__(p)
+	except ImportError:
+		missing_deps.append(p)
+
+if missing_deps:
+	raise ImportError("Prerequisite(s) not met: [%s]" %(", ").join(missing_deps))
 
 
 def reverse_enumerate(iterable):
