@@ -1,4 +1,7 @@
-#!/usr/bin/python
+#!/usr/bin/python2
+# Script is not entirely compatible with python3.
+# This is primarily because jinja2 uses things like dict.iteritems(), which
+# does not exist in Python 3
 
 # Requirements: 
 #   install unidecode, html2text, jinja2, PRAW (Python Reddit API Wrapper) and requests
@@ -32,6 +35,8 @@ def reverse_enumerate(iterable):
 	"""
 	# Lifted from http://galvanist.com/post/53478841501/python-reverse-enumerate
 	return itertools.izip(reversed(xrange(len(iterable))), reversed(iterable))
+	# Alternative python3 version:
+	# return zip(reversed(range(len(iterable))), reversed(iterable))
 
 class ThreadProcessor(object):
 	@property
@@ -198,6 +203,7 @@ e.g. --character-color Gandalf,#333355 makes Gandalf a dark blue""")
 		thread_id = args.thread
 		if os.path.isfile("%s.json" % args.thread):
 			# We can use the cached json output
+			print("Using cached json data")
 			json = open("%s.json" % args.thread, "r").read()
 
 		author_map = dict(a.split(",") for a in args.author)
@@ -212,14 +218,19 @@ e.g. --character-color Gandalf,#333355 makes Gandalf a dark blue""")
 		if args.json:
 			# store json output to `thread_id`.json
 			json_dump = processor.get_json()
+			print("Saving json")
 			open("%s.json" % args.thread, "w").write(json_dump)
 		if args.txt:
 			# store a rendered text file to `thread_id`.txt
+			print("Rendering txt")
 			text_dump = processor.get_txt()
+			print("Saving txt")
 			open("%s.txt" % args.thread, "w").write(text_dump)
 		if args.html:
 			# store a rendered html page to `thread_id`.html
+			print("Rendering html")
 			html_dump = processor.get_html()
+			print("Saving html")
 			open("%s.html" % args.thread, "w").write(html_dump)
 
 
