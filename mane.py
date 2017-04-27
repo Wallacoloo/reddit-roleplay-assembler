@@ -12,7 +12,6 @@
 # This is good for things like role-playing where everything is supposed to happen chronologically 
 #   and the number of comments grows absurdly.
 
-
 import base64, itertools, json, os.path, sys, time
 from collections import defaultdict
 
@@ -45,7 +44,7 @@ class ThreadProcessor(object):
 		Only load the thread if/when it's actually needed.
 		"""
 		if self._thread is None:
-			self._thread = self.reddit.get_submission(submission_id=self.thread_id)
+			self._thread = self.reddit.submission(id=self.thread_id)   #was self.reddit.get_submission(submission_id
 		return self._thread
 
 	@property
@@ -67,6 +66,7 @@ class ThreadProcessor(object):
 		self.comment_data = None
 		self.author_map = author_map or {}
 		self.characters = characters or {}
+		self.commentlist = []
 		# Create a handle for accessing reddit, and load the thread
 		self.reddit = praw.Reddit(user_agent='github.com/wallacoloo/reddit-roleplay-assembler')
 
@@ -77,16 +77,18 @@ class ThreadProcessor(object):
 			sys.setrecursionlimit(5*self.thread.num_comments+1000)
 
 			# Expand all comments (this will take some time!)
-			self.thread.replace_more_comments(limit=None, threshold=1)
-
+			self.thread.comments.replace_more(limit=None, threshold=0)
+			#note it's probably a good idea to loop and handle exceptions, they say...
+			
 			# Remove all but the main thread of comments
 			max_depth = self.max_comment_depth()
-			self.filter_comments_by_max_depth(max_depth)
+			self.filter_comments_by_max_depth(max_depth, self.thread.comments)
 
 			# There may still be comment forks near the end that have the same length
 			# We need to drop everything after the fork, as we don't know which of the choices is the main discussion
-			flattened = self.flatten()
-			self.comment_data = self.comments_to_dicts(flattened)
+			print 'got ', len(self.commentlist)
+			self.comment_data = self.comments_to_dicts(self.commentlist)
+			print 'dicts: ', len(self.comment_data)
 
 	def max_comment_depth(self, comment=None, cur_depth=0):
 		"""
@@ -94,8 +96,8 @@ class ThreadProcessor(object):
 		"""
 		if comment is None:
 			comment = self.thread
-		replies = comment.replies if isinstance(comment, praw.objects.Comment) else \
-			(comment.comments if isinstance(comment, praw.objects.Submission) else None)
+		replies = comment.replies if isinstance(comment, praw.models.Comment) else \
+			(comment.comments if isinstance(comment, praw.models.Submission) else None)
 		if replies:
 			return max(self.max_comment_depth(reply, cur_depth=cur_depth+1) for reply in replies)
 		else:
@@ -106,22 +108,29 @@ class ThreadProcessor(object):
 		Delete all comments which don't have any descendents at depths >= max_depth
 		"""
 		if comments is None: 
-			comments = self.thread.comments
+			return
 		for i, c in reverse_enumerate(comments):
 			# If the comment has no children at a sufficient depth, delete it altogether,
 			# Else apply the same algorithm to its children
-			if self.max_comment_depth(c) < max_depth-1:
-				del comments[i]
-			elif isinstance(c, praw.objects.Comment):
+			print i, " -> ", self.max_comment_depth(c), " v ", (max_depth-1)
+			if self.max_comment_depth(c) < (max_depth-1):
+				print "   ignoring", i
+			elif isinstance(c, praw.models.Comment):
+				self.commentlist.append(c)
+				print "   saving and recursing", i
 				self.filter_comments_by_max_depth(max_depth=max_depth-1, comments=c.replies)
 
-	def flatten(self):
+	def flatten(self, comment=None):
 		"""
 		Flattens a chain of comments,
 		but stops if it gets to an ambiguous point where a comment has more than one child (or no children)
 		"""
-		comment = self.thread.comments[0]
-		while isinstance(comment, praw.objects.Comment) and len(comment.replies) == 1:
+		print 'flattening'
+		if comment is None:
+			print 'comment is none'
+			comment = self.commentlist[0]
+		while isinstance(comment, praw.models.Comment):
+			print comment.body_html
 			yield comment
 			comment = comment.replies[0]
 
@@ -130,7 +139,7 @@ class ThreadProcessor(object):
 		Serialize a flat sequence of comments into an array of dicts that can easily be serialized to JSON.
 		"""
 		list_of_dicts = [{ "author": c.author.name, "body_html":c.body_html, 
-		"created_utc":c.created_utc, "permalink":c.permalink } for c in comments]
+		"created_utc":c.created_utc, "permalink":c.permalink(True) } for c in comments]
 		return list_of_dicts
 	def get_json(self):
 		"""
@@ -145,9 +154,9 @@ class ThreadProcessor(object):
 		template = env.get_template('basic.html')
 
 		# Embed subreddit's css into the html page:
-		style_info = self.subreddit.get_stylesheet()
-		subreddit_css = style_info["stylesheet"]
-		images = style_info["images"]
+		style_info = self.reddit.subreddit("mylittlepony").stylesheet.__call__()
+		subreddit_css = style_info.stylesheet
+		images = style_info.images
 		# substitute image urls
 		for im in images:
 			im_req = requests.get(im["url"])
@@ -164,7 +173,7 @@ class ThreadProcessor(object):
 		return template.render(unidecode=unidecode, time=time, 
 			subreddit_css=subreddit_css, 
 			author_map=author_map, characters=self.characters,
-			comments=self.comment_data, title="")
+			comments=self.comment_data, title=self.thread_id)
 	def get_txt(self):
 		"""
 		Flatten the thread to a plain-text view, in which each comment is separated by an empty line.
@@ -231,7 +240,7 @@ e.g. --character-color Gandalf,#333355 makes Gandalf a dark blue""")
 			print("Rendering html")
 			html_dump = processor.get_html()
 			print("Saving html")
-			open("%s.html" % args.thread, "w").write(html_dump)
+			open("%s.html" % args.thread, "w").write(html_dump.encode('utf8'))
 
 
 if __name__ == "__main__":
